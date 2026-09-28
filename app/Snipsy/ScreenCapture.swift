@@ -1,6 +1,23 @@
 import AppKit
 @preconcurrency import ScreenCaptureKit
 
+/// One display, captured the instant the shortcut is pressed.
+struct FrozenScreen {
+    let screen: NSScreen
+    let image: CGImage
+
+    /// Crops `rect` (global Cocoa coordinates, origin bottom-left) out of the frozen image, as PNG.
+    func png(of rect: CGRect) -> Data? {
+        let scale = CGFloat(image.width) / screen.frame.width
+        let pixels = CGRect(x: (rect.minX - screen.frame.minX) * scale,
+                            y: (screen.frame.maxY - rect.maxY) * scale, // CGImage rows start at the top
+                            width: rect.width * scale,
+                            height: rect.height * scale).integral
+        guard let cropped = image.cropping(to: pixels) else { return nil }
+        return NSBitmapImageRep(cgImage: cropped).representation(using: .png, properties: [:])
+    }
+}
+
 enum ScreenCapture {
     static var hasPermission: Bool { CGPreflightScreenCaptureAccess() }
 
@@ -15,44 +32,35 @@ enum ScreenCapture {
         }
     }
 
-    /// Captures `rect` (global Cocoa coordinates) on `screen` as PNG, without Snipsy's own windows.
-    static func capture(_ rect: CGRect, on screen: NSScreen) async throws -> Data {
+    /// Captures every display as it is right now (open menus included), without Snipsy's own windows.
+    /// Like macOS's screenshot tool, the selection then happens on this frozen image, so nothing on
+    /// screen can change or close in the meantime.
+    static func freeze() async throws -> [FrozenScreen] {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
-        guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
-            throw CaptureError.displayNotFound
-        }
         let pid = ProcessInfo.processInfo.processIdentifier
-        let filter = SCContentFilter(display: display,
-                                     excludingApplications: content.applications.filter { $0.processID == pid },
-                                     exceptingWindows: [])
-
-        let config = SCStreamConfiguration()
-        // ScreenCaptureKit wants display-local points with a top-left origin.
-        config.sourceRect = CGRect(x: rect.minX - screen.frame.minX, y: screen.frame.maxY - rect.maxY,
-                                   width: rect.width, height: rect.height)
-        config.width = Int(rect.width * screen.backingScaleFactor)
-        config.height = Int(rect.height * screen.backingScaleFactor)
-        config.captureResolution = .best
-        config.showsCursor = false
-
-        let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
-        guard let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
-            throw CaptureError.encodingFailed
+        let ownApp = content.applications.filter { $0.processID == pid }
+        var frozen: [FrozenScreen] = []
+        for screen in NSScreen.screens {
+            let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+            guard let display = content.displays.first(where: { $0.displayID == id }) else { continue }
+            let config = SCStreamConfiguration()
+            config.width = Int(screen.frame.width * screen.backingScaleFactor)
+            config.height = Int(screen.frame.height * screen.backingScaleFactor)
+            config.captureResolution = .best
+            config.showsCursor = false
+            let filter = SCContentFilter(display: display, excludingApplications: ownApp, exceptingWindows: [])
+            let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+            frozen.append(FrozenScreen(screen: screen, image: image))
         }
-        return png
+        guard !frozen.isEmpty else { throw CaptureError.displayNotFound }
+        return frozen
     }
 }
 
 enum CaptureError: LocalizedError {
-    case displayNotFound, encodingFailed
+    case displayNotFound
 
-    var errorDescription: String? {
-        switch self {
-        case .displayNotFound: "Couldn't find that display. Try again."
-        case .encodingFailed: "Couldn't encode the screenshot."
-        }
-    }
+    var errorDescription: String? { "Couldn't capture the screen. Try again." }
 }
 
 extension NSApplication {

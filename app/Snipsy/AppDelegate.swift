@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var hotKey: HotKey?
     private var selector: ScreenSelector?
+    private var isFreezing = false
     /// Last app the user was in, so captures started from our own popover are still attributed.
     private var lastApp: String?
 
@@ -16,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         if DebugSnapshot.isRequested { return DebugSnapshot.run() }
         if DebugSnapshot.isProbeRequested { return DebugSnapshot.probe() }
+        if DebugSnapshot.isFreezeRequested { return DebugSnapshot.freeze() }
         #endif
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
@@ -98,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Capture
 
     private func startCapture() {
-        guard selector == nil else { return }
+        guard selector == nil, !isFreezing else { return }
         guard ScreenCapture.hasPermission else {
             ScreenCapture.requestPermission()
             showPopover(tab: .setup)
@@ -106,25 +108,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let frontmost = NSWorkspace.shared.frontmostApplication
         let source = frontmost == .current ? lastApp : frontmost?.localizedName
-        popover.performClose(nil)
+        isFreezing = true
 
-        selector = ScreenSelector { [weak self] selection in
-            guard let self else { return }
-            selector = nil
-            guard let selection else {
-                if !model.shots.isEmpty { showPopover(tab: .snip) }
+        Task {
+            // Freeze the screen first, before anything of ours appears or takes focus:
+            // open menus and hover states are kept, like with macOS's own screenshot tool.
+            let frozen: [FrozenScreen]
+            do {
+                frozen = try await ScreenCapture.freeze()
+            } catch {
+                isFreezing = false
+                model.status = .error(error.localizedDescription)
+                showPopover(tab: .snip)
                 return
             }
-            Task {
-                do {
-                    let png = try await ScreenCapture.capture(selection.rect, on: selection.screen)
-                    self.model.add(png: png, app: source)
-                } catch {
-                    self.model.status = .error(error.localizedDescription)
+            isFreezing = false
+            popover.performClose(nil)
+
+            selector = ScreenSelector(frozen: frozen) { [weak self] result in
+                guard let self else { return }
+                selector = nil
+                if let (shot, rect) = result, let png = shot.png(of: rect) {
+                    model.add(png: png, app: source)
+                } else if model.shots.isEmpty {
+                    return // cancelled with nothing to show
                 }
-                self.showPopover(tab: .snip)
+                showPopover(tab: .snip)
             }
+            selector?.begin()
         }
-        selector?.begin()
     }
 }

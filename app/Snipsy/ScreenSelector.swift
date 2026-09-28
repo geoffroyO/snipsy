@@ -1,55 +1,53 @@
 import AppKit
 
-/// A rectangle the user dragged, in global Cocoa coordinates (origin bottom-left of the main display).
-struct ScreenSelection {
-    let rect: CGRect
-    let screen: NSScreen
-}
-
-/// Covers every display with a dimmed overlay to drag out a capture area. Esc cancels.
+/// Covers each display with its frozen image, dimmed, to drag out a capture area. Esc cancels.
+///
+/// The overlays are non-activating panels: Snipsy never comes to the foreground, so the app
+/// being captured keeps its state (and the frozen image already holds any open menu).
 final class ScreenSelector {
-    private var windows: [NSWindow] = []
-    private let completion: (ScreenSelection?) -> Void
+    private var panels: [NSPanel] = []
+    private let completion: ((FrozenScreen, CGRect)?) -> Void
 
-    init(completion: @escaping (ScreenSelection?) -> Void) {
+    init(frozen: [FrozenScreen], completion: @escaping ((FrozenScreen, CGRect)?) -> Void) {
         self.completion = completion
+        panels = frozen.map { shot in
+            let panel = OverlayPanel(contentRect: shot.screen.frame, styleMask: [.borderless, .nonactivatingPanel],
+                                     backing: .buffered, defer: false)
+            panel.level = .screenSaver
+            panel.isOpaque = true
+            panel.hasShadow = false
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            panel.contentView = SelectionView(image: shot.image) { [weak self] rect in self?.finish(rect, on: shot) }
+            panel.setFrame(shot.screen.frame, display: false)
+            return panel
+        }
     }
 
     func begin() {
-        windows = NSScreen.screens.map { screen in
-            let window = OverlayWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
-            window.level = .screenSaver
-            window.backgroundColor = .clear
-            window.isOpaque = false
-            window.hasShadow = false
-            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            window.contentView = SelectionView { [weak self] rect in self?.finish(rect, on: screen) }
-            window.setFrame(screen.frame, display: false)
-            return window
-        }
-        NSApp.activate()
-        windows.forEach { $0.orderFrontRegardless() }
-        let underMouse = windows.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
-        (underMouse ?? windows.first)?.makeKey()
+        panels.forEach { $0.orderFrontRegardless() }
+        let underMouse = panels.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
+        (underMouse ?? panels.first)?.makeKey() // for Esc; a non-activating panel doesn't activate the app
     }
 
-    private func finish(_ rect: CGRect?, on screen: NSScreen) {
-        windows.forEach { $0.orderOut(nil) }
-        windows = []
-        completion(rect.map { ScreenSelection(rect: $0, screen: screen) })
+    private func finish(_ rect: CGRect?, on shot: FrozenScreen) {
+        panels.forEach { $0.orderOut(nil) }
+        panels = []
+        completion(rect.map { (shot, $0) })
     }
 }
 
-private final class OverlayWindow: NSWindow {
+private final class OverlayPanel: NSPanel {
     override var canBecomeKey: Bool { true }
 }
 
 private final class SelectionView: NSView {
+    private let image: NSImage
     private var start: NSPoint?
     private var current: NSPoint?
     private let onFinish: (CGRect?) -> Void
 
-    init(onFinish: @escaping (CGRect?) -> Void) {
+    init(image: CGImage, onFinish: @escaping (CGRect?) -> Void) {
+        self.image = NSImage(cgImage: image, size: .zero)
         self.onFinish = onFinish
         super.init(frame: .zero)
     }
@@ -92,16 +90,21 @@ private final class SelectionView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor(srgbRed: 0.24, green: 0.18, blue: 0.12, alpha: 0.28).setFill()
-        bounds.fill()
+        image.draw(in: bounds)
+
+        // Dim everything but the selection.
+        let dim = NSBezierPath(rect: bounds)
+        if let rect = selection {
+            dim.appendRect(rect)
+            dim.windingRule = .evenOdd
+        }
+        NSColor(srgbRed: 0.24, green: 0.18, blue: 0.12, alpha: 0.32).setFill()
+        dim.fill()
 
         guard let rect = selection else {
             drawHint("Drag to capture · Esc to cancel")
             return
         }
-        NSColor.clear.setFill()
-        rect.fill(using: .copy)
-
         let border = NSBezierPath(rect: rect.insetBy(dx: -1, dy: -1))
         border.lineWidth = 2
         border.setLineDash([7, 4], count: 2, phase: 0)

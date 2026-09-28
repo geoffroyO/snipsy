@@ -7,6 +7,26 @@ import SwiftUI
 enum DebugSnapshot {
     static var isRequested: Bool { UserDefaults.standard.bool(forKey: "snapshot") }
     static var isProbeRequested: Bool { UserDefaults.standard.bool(forKey: "probe") }
+    static var isFreezeRequested: Bool { UserDefaults.standard.bool(forKey: "freeze") }
+
+    /// `Snipsy -freeze 1`: freeze the screen, crop the top-left 400×300 pt of the main display, save it, quit.
+    static func freeze() {
+        Task {
+            do {
+                let shots = try await ScreenCapture.freeze()
+                for shot in shots {
+                    let f = shot.screen.frame
+                    let rect = CGRect(x: f.minX, y: f.maxY - 300, width: 400, height: 300) // top-left corner
+                    let url = FileManager.default.temporaryDirectory.appending(path: "freeze-\(Int(f.minX)).png")
+                    try shot.png(of: rect)?.write(to: url)
+                    print("frozen \(shot.image.width)x\(shot.image.height) for \(Int(f.width))x\(Int(f.height)) pt -> \(url.path)")
+                }
+            } catch {
+                print("freeze ERROR:", error)
+            }
+            NSApp.terminate(nil)
+        }
+    }
 
     /// `Snipsy -probe 1`: query the bridge exactly like the app does, print the result, quit.
     static func probe() {
