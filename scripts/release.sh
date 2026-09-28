@@ -63,7 +63,7 @@ xcrun stapler staple "$DMG"
 
 echo "▸ Verify"
 spctl --assess --type execute -vv "$APP"
-spctl --assess --type open --context context:primary-signature -vv "$DMG"
+xcrun stapler validate "$DMG"
 
 echo "▸ GitHub release"
 git tag "v$VERSION" && git push origin "v$VERSION"
