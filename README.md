@@ -48,7 +48,7 @@ The plugin's hook registers each session and starts the local bridge. The bridge
 | | |
 |---|---|
 | `app/` | macOS menu bar app: SwiftUI, sandboxed, Swift 6. Open `app/Snipsy.xcodeproj`, ⌘R. |
-| `plugin/` | One plugin for Claude Code (`.claude-plugin/`) and Codex (`.codex-plugin/`). |
+| `plugin/` | One plugin for Claude Code (`.claude-plugin/`) and Codex (`.codex-plugin/`): hooks, local bridge, channel, and a `snipsy` skill so the agent can explain setup and usage. |
 | `tests/` | Bridge tests: `python3 -m unittest discover tests` |
 | `scripts/make_icon.py` | Regenerates the app icon (Pillow, numpy). |
 
