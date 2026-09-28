@@ -1,6 +1,6 @@
 {
   "name": "snipsy",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Bridge for the Snipsy menu bar app: send screenshots + a comment from your Mac straight into a Codex session.",
   "author": {
     "name": "Geoffroy Oudoumanessah"

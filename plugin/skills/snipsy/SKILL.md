@@ -76,7 +76,7 @@ Other: right-click ✂️ for a menu (Capture, Setup, Check for Updates, Quit); 
 
 ## Privacy
 
-Nothing leaves the Mac. The app only talks to the bridge on 127.0.0.1; no analytics, no account. Screenshots are only taken of the area the user selects, stored in `~/.snipsy/inbox/` for their session, and clipboard copies are kept 7 days in `~/.snipsy/clips/`. What the agent does with an image afterwards follows that agent's own terms.
+Screenshots never leave the Mac: the app sends them only to the bridge on 127.0.0.1. No analytics, no account. The only other network request is the update check against github.com (Sparkle, at most daily, with the user's consent, no system data sent). Screenshots are only taken of the area the user selects, stored in `~/.snipsy/inbox/` for their session, and clipboard copies are kept 7 days in `~/.snipsy/clips/`. What the agent does with an image afterwards follows that agent's own terms.
 
 ## Troubleshooting
 

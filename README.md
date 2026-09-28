@@ -12,7 +12,7 @@
 - Pick a **Claude Code** or **Codex** session (terminal or desktop app), write a prompt, **↵** to send.
 - Or pick **Clipboard**: your prompt, the screenshots' file paths and the image, ready to paste in any chat.
 
-Everything stays on your Mac. Snipsy is an independent project, not affiliated with Anthropic or OpenAI.
+Your screenshots stay on your Mac. Snipsy is an independent project, not affiliated with Anthropic or OpenAI.
 
 ## Install
 
