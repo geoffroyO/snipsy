@@ -190,8 +190,13 @@ private struct DestinationPicker: View {
         }
         if model.sessions.count > 5 {
             ScrollViewReader { proxy in
-                ScrollView { list.padding(.trailing, 6) }
+                // Room around the rows: their crayon outlines overflow a little and ScrollView clips.
+                ScrollView { list.padding(.horizontal, 4).padding(.vertical, 8).padding(.trailing, 6) }
                     .frame(height: 196)
+                    // Soft fade at the edges, so rows scrolling out look intentional rather than cut.
+                    .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.12),
+                                                 .init(color: .black, location: 0.88), .init(color: .clear, location: 1)],
+                                         startPoint: .top, endPoint: .bottom))
                     .onAppear { proxy.scrollTo(model.destinationID, anchor: .center) }
             }
         } else {
