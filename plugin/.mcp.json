@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "snipsy": { "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/bridge/channel.py"] }
+  }
+}

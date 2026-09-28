@@ -1,0 +1,12 @@
+{
+  "name": "snipsy",
+  "description": "Snipsy: send screenshots from your Mac to Claude Code.",
+  "owner": { "name": "Geoffroy Oudoumanessah" },
+  "plugins": [
+    {
+      "name": "snipsy",
+      "source": "./plugin",
+      "description": "Bridge for the Snipsy menu bar app: screenshots + a comment into a Claude Code session."
+    }
+  ]
+}
