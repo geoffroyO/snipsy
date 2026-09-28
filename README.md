@@ -6,7 +6,7 @@
 
 <p align="center">Snip any part of your screen and send it, with a prompt, straight into a Claude Code or Codex session.</p>
 
-<p align="center"><img src="docs/snipsy.png" width="360" alt="Snipsy's menu bar panel"></p>
+<p align="center"><img src="docs/snipsy-demo.gif" width="720" alt="Snipsy demo: snip a bug on a web page, send it to Claude Code, it gets fixed"></p>
 
 - **⇧⌘2** anywhere, drag an area. Stack as many as you like.
 - Pick a **Claude Code** or **Codex** session (terminal or desktop app), write a prompt, **↵** to send.
