@@ -4,3 +4,4 @@ app/build/
 DerivedData/
 xcuserdata/
 *.xcuserstate
+build/

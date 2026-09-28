@@ -54,6 +54,6 @@ The plugin's hook registers each session and starts the local bridge. The bridge
 
 - Check the plugin: `claude plugin validate .`
 - Debug builds can render the UI to PNGs: `Snipsy.app/Contents/MacOS/Snipsy -snapshot 1`
-- Release: set your team in *Signing & Capabilities*, then *Product → Archive → Distribute App* (Developer ID or App Store). The app is already sandboxed.
+- Release: `scripts/release.sh` archives, signs with Developer ID, notarizes, builds the DMG and publishes the GitHub release (one-time setup in the script's header).
 
 [MIT License](LICENSE) · [Privacy](PRIVACY.md)
