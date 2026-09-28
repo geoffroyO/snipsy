@@ -53,7 +53,11 @@ xcrun stapler staple "$APP"
 echo "▸ Build the DMG"
 mkdir -p "$OUT/dmg" && cp -R "$APP" "$OUT/dmg/" && ln -s /Applications "$OUT/dmg/Applications"
 hdiutil create -volname "Snipsy" -srcfolder "$OUT/dmg" -ov -format UDZO "$DMG" -quiet
-codesign --sign "Developer ID Application" --timestamp "$DMG"
+# Signing the DMG itself needs the certificate in the keychain; with Apple's cloud-managed
+# Developer ID (Xcode signs the app remotely) we skip it: notarization covers the DMG anyway.
+if security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+  codesign --sign "Developer ID Application" --timestamp "$DMG"
+fi
 xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
 xcrun stapler staple "$DMG"
 
