@@ -7,5 +7,12 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- Sparkle: the feed is published with each GitHub release by scripts/release.sh. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/geoffroyO/snipsy/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>8/qtGiFgWR4ZN5StPUjG8jNgjsuIoUuxyh/jPIc2itU=</string>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 </dict>
 </plist>

@@ -4,9 +4,12 @@
 #   scripts/release.sh            # version comes from MARKETING_VERSION in the Xcode project
 #
 # One-time setup:
-#   - a "Developer ID Application" certificate for the team (Xcode → Settings → Accounts → Manage Certificates)
+#   - a "Developer ID Application" certificate for the team, or access to Apple's cloud-managed one
 #   - notarization credentials in the keychain:
 #       xcrun notarytool store-credentials snipsy --apple-id <email> --team-id DCD67SQY45
+#   - the Sparkle update-signing key in the keychain (account "snipsy"), created once with
+#     Sparkle's generate_keys. Back it up (generate_keys --account snipsy -x <file>) somewhere safe:
+#     without it, installed copies can never be updated again. Never commit it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -14,11 +17,13 @@ TEAM=DCD67SQY45
 PROFILE=snipsy
 PROJECT=app/Snipsy.xcodeproj
 OUT=build/release
+PACKAGES=build/packages
+BUILD=$(git rev-list --count HEAD) # Sparkle compares build numbers: this one only ever grows
 
 VERSION=$(xcodebuild -project "$PROJECT" -scheme Snipsy -configuration Release -showBuildSettings 2>/dev/null |
           awk '$1 == "MARKETING_VERSION" { print $3; exit }')
 DMG="$OUT/Snipsy-$VERSION.dmg"
-echo "▸ Snipsy $VERSION"
+echo "▸ Snipsy $VERSION ($BUILD)"
 
 git diff --quiet && git diff --cached --quiet || { echo "✗ Commit your changes first."; exit 1; }
 ! git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null || { echo "✗ v$VERSION already exists: bump MARKETING_VERSION."; exit 1; }
@@ -27,6 +32,7 @@ rm -rf "$OUT" && mkdir -p "$OUT"
 
 echo "▸ Archive"
 xcodebuild -project "$PROJECT" -scheme Snipsy -configuration Release -archivePath "$OUT/Snipsy.xcarchive" \
+           -clonedSourcePackagesDirPath "$PACKAGES" CURRENT_PROJECT_VERSION="$BUILD" \
            -allowProvisioningUpdates archive -quiet
 
 echo "▸ Export with Developer ID"
@@ -61,12 +67,19 @@ fi
 xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
 xcrun stapler staple "$DMG"
 
+echo "▸ Sparkle appcast"
+mkdir -p "$OUT/updates" && cp "$DMG" "$OUT/updates/"
+"$PACKAGES/artifacts/sparkle/Sparkle/bin/generate_appcast" --account snipsy \
+    --download-url-prefix "https://github.com/geoffroyO/snipsy/releases/download/v$VERSION/" \
+    -o "$OUT/appcast.xml" "$OUT/updates"
+
 echo "▸ Verify"
 spctl --assess --type execute -vv "$APP"
 xcrun stapler validate "$DMG"
 
 echo "▸ GitHub release"
 git tag "v$VERSION" && git push origin "v$VERSION"
-gh release create "v$VERSION" "$DMG" --title "Snipsy $VERSION" --generate-notes
+# The appcast rides along with each release: SUFeedURL points at releases/latest/download/appcast.xml.
+gh release create "v$VERSION" "$DMG" "$OUT/appcast.xml" --title "Snipsy $VERSION" --generate-notes
 
 echo "✓ Released Snipsy $VERSION"

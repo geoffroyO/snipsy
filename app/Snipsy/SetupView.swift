@@ -67,6 +67,9 @@ struct SetupView: View {
                 Text("·").foregroundStyle(Color.mute)
                 Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")")
                     .foregroundStyle(Color.mute)
+                Text("·").foregroundStyle(Color.mute)
+                Button("Check for updates") { model.checkForUpdates?() }
+                    .buttonStyle(.link)
                 Spacer()
                 Button("Quit Snipsy") { NSApp.terminate(nil) }
                     .buttonStyle(.plain)

@@ -39,6 +39,8 @@ final class AppModel {
 
     /// Called after a successful send (the app delegate closes the popover).
     @ObservationIgnored var onSent: (() -> Void)?
+    /// Opens Sparkle's update check (set by the app delegate).
+    @ObservationIgnored var checkForUpdates: (() -> Void)?
 
     init() {
         destinationID = UserDefaults.standard.string(forKey: "destination")

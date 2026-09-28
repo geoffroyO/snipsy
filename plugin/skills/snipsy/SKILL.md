@@ -55,7 +55,7 @@ Snipsy.app ──HTTP──▶ bridge/server.py (127.0.0.1:7823) ──▶ ~/.sn
 4. Write a prompt. **↵ sends**, **⌘↵** (or ⇧↵) inserts a new line.
 5. Or choose **Clipboard**: Snipsy copies the prompt, the screenshots' file paths (for terminals, including Claude Code and Codex, which turn the paths into attached images) and the image itself (for chat apps like ChatGPT or Claude.ai). Paste with ⌘V.
 
-Other: right-click ✂️ for a menu (Capture, Setup, Quit); *Setup* has **Open at login**.
+Other: right-click ✂️ for a menu (Capture, Setup, Check for Updates, Quit); *Setup* has **Open at login**.
 
 ## Delivery
 
@@ -71,7 +71,7 @@ Other: right-click ✂️ for a menu (Capture, Setup, Quit); *Setup* has **Open 
 ## Update and uninstall
 
 - **Update the plugin**: `claude plugin marketplace update snipsy && claude plugin update snipsy@snipsy` (Codex: `codex plugin remove snipsy@snipsy && codex plugin add snipsy@snipsy`), then start a new session.
-- **Update the app**: download the latest release and replace it in Applications.
+- **Update the app**: automatic. Snipsy checks for updates itself (Sparkle) and offers to install them; to check now, right-click ✂️ → *Check for Updates…* or use the link at the bottom of *Setup*.
 - **Uninstall**: quit Snipsy from its menu, delete it from Applications, `claude plugin uninstall snipsy@snipsy` / `codex plugin remove snipsy@snipsy`, and optionally `rm -rf ~/.snipsy`.
 
 ## Privacy

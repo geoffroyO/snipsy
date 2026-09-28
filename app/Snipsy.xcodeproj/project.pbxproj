@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5A1000000000000000000013 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 5A1000000000000000000012 /* Sparkle */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		5A1000000000000000000001 /* Snipsy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Snipsy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -37,6 +41,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A1000000000000000000013 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -79,6 +84,7 @@
 			);
 			name = Snipsy;
 			packageProductDependencies = (
+				5A1000000000000000000012 /* Sparkle */,
 			);
 			productName = Snipsy;
 			productReference = 5A1000000000000000000001 /* Snipsy.app */;
@@ -108,6 +114,9 @@
 			);
 			mainGroup = 5A1000000000000000000005;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5A1000000000000000000011 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5A1000000000000000000006 /* Products */;
 			projectDirPath = "";
@@ -275,6 +284,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5A1000000000000000000011 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.10.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5A1000000000000000000012 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5A1000000000000000000011 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 5A1000000000000000000008 /* Project object */;
 }

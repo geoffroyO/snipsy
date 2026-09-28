@@ -16,7 +16,7 @@ Everything stays on your Mac. Snipsy is an independent project, not affiliated w
 
 ## Install
 
-1. **App** (macOS 14+): download it from the [latest release](https://github.com/geoffroyO/snipsy/releases/latest), move it to Applications, open it and allow screen capture.
+1. **App** (macOS 14+): download it from the [latest release](https://github.com/geoffroyO/snipsy/releases/latest), move it to Applications, open it and allow screen capture. It updates itself afterwards.
 2. **Plugin**, for the agents you use:
 
    ```sh
@@ -54,6 +54,6 @@ The plugin's hook registers each session and starts the local bridge. The bridge
 
 - Check the plugin: `claude plugin validate .`
 - Debug builds can render the UI to PNGs: `Snipsy.app/Contents/MacOS/Snipsy -snapshot 1`
-- Release: `scripts/release.sh` archives, signs with Developer ID, notarizes, builds the DMG and publishes the GitHub release (one-time setup in the script's header).
+- Release: `scripts/release.sh` archives, signs with Developer ID, notarizes, builds the DMG, signs the Sparkle appcast and publishes the GitHub release (one-time setup in the script's header).
 
 [MIT License](LICENSE) · [Privacy](PRIVACY.md)

@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import Sparkle
 import SwiftUI
 
 /// Owns the menu bar item, the popover, the global shortcut and the capture flow.
@@ -10,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKey: HotKey?
     private var selector: ScreenSelector?
     private var isFreezing = false
+    /// Sparkle: checks the feed in Info.plist (SUFeedURL) and installs signed updates.
+    private var updater: SPUStandardUpdaterController?
     /// Last app the user was in, so captures started from our own popover are still attributed.
     private var lastApp: String?
 
@@ -19,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if DebugSnapshot.isProbeRequested { return DebugSnapshot.probe() }
         if DebugSnapshot.isFreezeRequested { return DebugSnapshot.freeze() }
         #endif
+        updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        model.checkForUpdates = { [weak self] in self?.checkForUpdates() }
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "scissors", accessibilityDescription: "Snipsy")
@@ -77,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Capture Area", action: #selector(captureFromMenu), keyEquivalent: "2")
             .keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(withTitle: "Setup…", action: #selector(openSetup), keyEquivalent: "")
+        menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Snipsy", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.items.forEach { if $0.action != #selector(NSApplication.terminate(_:)) { $0.target = self } }
@@ -87,6 +94,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func captureFromMenu() { startCapture() }
     @objc private func openSetup() { showPopover(tab: .setup) }
+
+    @objc private func checkForUpdates() {
+        popover.performClose(nil)
+        NSApp.activate() // menu bar app: bring Sparkle's window to the front
+        updater?.checkForUpdates(nil)
+    }
 
     private func showPopover(tab: PanelTab? = nil) {
         if let tab { model.tab = tab }
