@@ -1,7 +1,7 @@
 import AppKit
 @preconcurrency import ScreenCaptureKit
 
-/// One display, captured the instant the shortcut is pressed.
+/// One display, captured right when the shortcut is pressed.
 struct FrozenScreen {
     let screen: NSScreen
     let image: CGImage
@@ -32,27 +32,58 @@ enum ScreenCapture {
         }
     }
 
-    /// Captures every display as it is right now (open menus included), without Snipsy's own windows.
-    /// Like macOS's screenshot tool, the selection then happens on this frozen image, so nothing on
-    /// screen can change or close in the meantime.
+    /// Displays and running apps, fetched ahead of time: asking ScreenCaptureKit for them is the
+    /// slowest part of a capture (often hundreds of ms), so it must not happen when ⇧⌘2 is pressed.
+    private static var content: SCShareableContent?
+
+    /// Fetches the shareable content and warms up the capture pipeline, so the next capture is instant.
+    /// Called at launch, when displays change, and after each capture.
+    static func prepare() async {
+        guard hasPermission else { return }
+        content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        if let display = content?.displays.first { // the very first screenshot is slower: take a 1 pt one now
+            let config = SCStreamConfiguration()
+            config.sourceRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+            config.width = 1
+            config.height = 1
+            _ = try? await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(display: display, excludingWindows: []),
+                                                            configuration: config)
+        }
+    }
+
+    /// Captures every display as it is right now (open menus included), without Snipsy's own windows,
+    /// all displays in parallel. The selection overlay can already be on screen: it's excluded.
     static func freeze() async throws -> [FrozenScreen] {
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        do {
+            let current = if let content { content } else { try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) }
+            return try await capture(using: current)
+        } catch {
+            // Cached content can go stale (display plugged or unplugged): refetch once.
+            let fresh = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            content = fresh
+            return try await capture(using: fresh)
+        }
+    }
+
+    private static func capture(using content: SCShareableContent) async throws -> [FrozenScreen] {
         let pid = ProcessInfo.processInfo.processIdentifier
         let ownApp = content.applications.filter { $0.processID == pid }
-        var frozen: [FrozenScreen] = []
-        for screen in NSScreen.screens {
+        let captures = NSScreen.screens.compactMap { screen -> Task<FrozenScreen, Error>? in
             let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
-            guard let display = content.displays.first(where: { $0.displayID == id }) else { continue }
+            guard let display = content.displays.first(where: { $0.displayID == id }) else { return nil }
             let config = SCStreamConfiguration()
             config.width = Int(screen.frame.width * screen.backingScaleFactor)
             config.height = Int(screen.frame.height * screen.backingScaleFactor)
             config.captureResolution = .best
             config.showsCursor = false
             let filter = SCContentFilter(display: display, excludingApplications: ownApp, exceptingWindows: [])
-            let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
-            frozen.append(FrozenScreen(screen: screen, image: image))
+            return Task { // started together: displays are captured in parallel
+                FrozenScreen(screen: screen, image: try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config))
+            }
         }
-        guard !frozen.isEmpty else { throw CaptureError.displayNotFound }
+        guard captures.count == NSScreen.screens.count else { throw CaptureError.displayNotFound }
+        var frozen: [FrozenScreen] = []
+        for capture in captures { frozen.append(try await capture.value) }
         return frozen
     }
 }

@@ -10,7 +10,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var hotKey: HotKey?
     private var selector: ScreenSelector?
-    private var isFreezing = false
     /// Sparkle: checks the feed in Info.plist (SUFeedURL) and installs signed updates.
     private var updater: SPUStandardUpdaterController?
     /// Last app the user was in, so captures started from our own popover are still attributed.
@@ -57,6 +56,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   app != .current else { return }
             let name = app.localizedName
             MainActor.assumeIsolated { self?.lastApp = name }
+        }
+
+        // Capture must be instant: fetch displays and warm up ScreenCaptureKit now, and again when they change.
+        Task { await ScreenCapture.prepare() }
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
+                                               object: nil, queue: .main) { _ in
+            Task { @MainActor in await ScreenCapture.prepare() }
         }
 
         // First run (or something missing): open straight on Setup.
@@ -113,7 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Capture
 
     private func startCapture() {
-        guard selector == nil, !isFreezing else { return }
+        guard selector == nil else { return }
         guard ScreenCapture.hasPermission else {
             ScreenCapture.requestPermission()
             showPopover(tab: .setup)
@@ -121,34 +127,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let frontmost = NSWorkspace.shared.frontmostApplication
         let source = frontmost == .current ? lastApp : frontmost?.localizedName
-        isFreezing = true
 
-        Task {
-            // Freeze the screen first, before anything of ours appears or takes focus:
-            // open menus and hover states are kept, like with macOS's own screenshot tool.
-            let frozen: [FrozenScreen]
-            do {
-                frozen = try await ScreenCapture.freeze()
-            } catch {
-                isFreezing = false
-                model.status = .error(error.localizedDescription)
-                showPopover(tab: .snip)
-                return
-            }
-            isFreezing = false
-            popover.performClose(nil)
-
-            selector = ScreenSelector(frozen: frozen) { [weak self] result in
-                guard let self else { return }
-                selector = nil
-                if let (shot, rect) = result, let png = shot.png(of: rect) {
-                    model.add(png: png, app: source)
-                } else if model.shots.isEmpty {
-                    return // cancelled with nothing to show
+        // The crosshair shows up instantly; the screen is captured at the same time, without our
+        // overlay, and the selection is cropped from that frozen image.
+        let freezing = Task { try await ScreenCapture.freeze() }
+        popover.performClose(nil)
+        let selector = ScreenSelector { [weak self] result in
+            guard let self else { return }
+            self.selector = nil
+            Task {
+                defer { Task { await ScreenCapture.prepare() } } // ready for the next one
+                guard let (screen, rect) = result else {
+                    if !self.model.shots.isEmpty { self.showPopover(tab: .snip) }
+                    return
                 }
-                showPopover(tab: .snip)
+                do {
+                    let frozen = try await freezing.value
+                    if let png = frozen.first(where: { $0.screen == screen })?.png(of: rect) {
+                        self.model.add(png: png, app: source)
+                    }
+                } catch {
+                    self.model.status = .error(error.localizedDescription)
+                }
+                self.showPopover(tab: .snip)
             }
-            selector?.begin()
         }
+        self.selector = selector
+        selector.begin()
+        Task { if let frozen = try? await freezing.value { selector.show(frozen) } }
     }
 }

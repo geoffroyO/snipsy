@@ -1,38 +1,49 @@
 import AppKit
 
-/// Covers each display with its frozen image, dimmed, to drag out a capture area. Esc cancels.
+/// Covers each display with a dimmed overlay to drag out a capture area. Esc cancels.
 ///
-/// The overlays are non-activating panels: Snipsy never comes to the foreground, so the app
-/// being captured keeps its state (and the frozen image already holds any open menu).
+/// It appears the instant the shortcut is pressed, over the live screen, like macOS's screenshot
+/// tool; the frozen image (captured in parallel, without our overlay) replaces it as soon as it's
+/// ready. The overlays are non-activating panels: Snipsy never comes to the foreground, so the app
+/// being captured keeps its state, open menus included.
 final class ScreenSelector {
-    private var panels: [NSPanel] = []
-    private let completion: ((FrozenScreen, CGRect)?) -> Void
+    private var panels: [(screen: NSScreen, panel: NSPanel, view: SelectionView)] = []
+    private let completion: ((NSScreen, CGRect)?) -> Void
 
-    init(frozen: [FrozenScreen], completion: @escaping ((FrozenScreen, CGRect)?) -> Void) {
+    init(completion: @escaping ((NSScreen, CGRect)?) -> Void) {
         self.completion = completion
-        panels = frozen.map { shot in
-            let panel = OverlayPanel(contentRect: shot.screen.frame, styleMask: [.borderless, .nonactivatingPanel],
+        panels = NSScreen.screens.map { screen in
+            let panel = OverlayPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
                                      backing: .buffered, defer: false)
             panel.level = .screenSaver
-            panel.isOpaque = true
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
             panel.hasShadow = false
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            panel.contentView = SelectionView(image: shot.image) { [weak self] rect in self?.finish(rect, on: shot) }
-            panel.setFrame(shot.screen.frame, display: false)
-            return panel
+            let view = SelectionView { [weak self] rect in self?.finish(rect, on: screen) }
+            panel.contentView = view
+            panel.setFrame(screen.frame, display: false)
+            return (screen, panel, view)
+        }
+    }
+
+    /// Shows the frozen image under the selection once the capture is done.
+    func show(_ frozen: [FrozenScreen]) {
+        for shot in frozen {
+            panels.first { $0.screen == shot.screen }?.view.image = NSImage(cgImage: shot.image, size: .zero)
         }
     }
 
     func begin() {
-        panels.forEach { $0.orderFrontRegardless() }
-        let underMouse = panels.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
-        (underMouse ?? panels.first)?.makeKey() // for Esc; a non-activating panel doesn't activate the app
+        panels.forEach { $0.panel.orderFrontRegardless() }
+        let underMouse = panels.first { NSMouseInRect(NSEvent.mouseLocation, $0.panel.frame, false) }
+        (underMouse ?? panels.first)?.panel.makeKey() // for Esc; a non-activating panel doesn't activate the app
     }
 
-    private func finish(_ rect: CGRect?, on shot: FrozenScreen) {
-        panels.forEach { $0.orderOut(nil) }
+    private func finish(_ rect: CGRect?, on screen: NSScreen) {
+        panels.forEach { $0.panel.orderOut(nil) }
         panels = []
-        completion(rect.map { (shot, $0) })
+        completion(rect.map { (screen, $0) })
     }
 }
 
@@ -41,13 +52,13 @@ private final class OverlayPanel: NSPanel {
 }
 
 private final class SelectionView: NSView {
-    private let image: NSImage
+    /// The frozen screen; nil for the first few ms, while the live screen shows through.
+    var image: NSImage? { didSet { needsDisplay = true } }
     private var start: NSPoint?
     private var current: NSPoint?
     private let onFinish: (CGRect?) -> Void
 
-    init(image: CGImage, onFinish: @escaping (CGRect?) -> Void) {
-        self.image = NSImage(cgImage: image, size: .zero)
+    init(onFinish: @escaping (CGRect?) -> Void) {
         self.onFinish = onFinish
         super.init(frame: .zero)
     }
@@ -90,7 +101,7 @@ private final class SelectionView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        image.draw(in: bounds)
+        image?.draw(in: bounds)
 
         // Dim everything but the selection.
         let dim = NSBezierPath(rect: bounds)
