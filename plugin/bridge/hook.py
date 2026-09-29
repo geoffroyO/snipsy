@@ -5,7 +5,10 @@ target it, starts server.py if needed, and on each prompt hands this session its
 screenshots (for Claude Code sessions started with the Snipsy channel, channel.py
 delivers them instantly instead).
 """
-import json, os, pathlib, re, socket, subprocess, sys, time
+import json, os, pathlib, re, signal, socket, subprocess, sys, time
+
+sys.dont_write_bytecode = True  # importing server.py below must not leave __pycache__ around
+from server import VERSION  # noqa: E402
 
 BASE = pathlib.Path.home() / ".snipsy"
 PORT = int(os.environ.get("SNIPSY_PORT", 7823))  # overridable for tests
@@ -117,12 +120,36 @@ def readable(prompt):
     return text[:80]
 
 
-def ensure_server():
+def running_bridge():
+    """(pid, version) of the bridge listening on PORT, or None if the port is free."""
     try:
         socket.create_connection(("127.0.0.1", PORT), 0.2).close()
     except OSError:
-        subprocess.Popen([sys.executable, str(pathlib.Path(__file__).with_name("server.py"))],
-                         start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return None
+    try:
+        info = json.loads((BASE / "server.json").read_text())
+        return info["pid"], info["version"]
+    except (OSError, ValueError, KeyError):  # bridges before 1.5 didn't record themselves
+        pids = subprocess.run(["lsof", "-ti", f"tcp:{PORT}", "-sTCP:LISTEN"], capture_output=True, text=True).stdout.split()
+        return (int(pids[0]) if pids else None), "0"
+
+
+def ensure_server():
+    """Start the bridge, or replace a running one that's older than this plugin (never newer)."""
+    running = running_bridge()
+    if running:
+        pid, version = running
+        older = tuple(map(int, version.split("."))) < tuple(map(int, VERSION.split(".")))
+        args = subprocess.run(["ps", "-o", "args=", "-p", str(pid)], capture_output=True, text=True).stdout if pid else ""
+        if not older or "server.py" not in args:  # up to date, or not our bridge: leave it
+            return
+        os.kill(pid, signal.SIGTERM)
+        for _ in range(40):  # wait for the port to be released
+            if running_bridge() is None:
+                break
+            time.sleep(0.05)
+    subprocess.Popen([sys.executable, str(pathlib.Path(__file__).with_name("server.py"))],
+                     start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ Origin. Web pages always send an Origin, and can't add custom headers cross-orig
 import base64, http.server, json, os, pathlib, re, shutil, time
 
 PORT = int(os.environ.get("SNIPSY_PORT", 7823))  # overridable for tests
+VERSION = "1.5.0"  # bump when the protocol changes: hooks replace older running bridges
 BASE = pathlib.Path.home() / ".snipsy"
 STALE = 3 * 86400  # safety net for sessions whose process we couldn't identify
 CLIP_TTL = 7 * 86400  # clipboard screenshots are kept a week
@@ -116,4 +117,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    BASE.mkdir(parents=True, exist_ok=True)
+    (BASE / "server.json").write_text(json.dumps({"pid": os.getpid(), "version": VERSION}))
+    server.serve_forever()

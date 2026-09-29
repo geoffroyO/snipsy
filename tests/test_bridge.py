@@ -62,6 +62,13 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(self.request("/sessions", headers={"Origin": "chrome-extension://x"})[0], 403)
         self.assertEqual(self.request("/sessions")[0], 200)
 
+    def test_server_records_its_version(self):
+        info = json.loads(pathlib.Path(self.home.name, ".snipsy/server.json").read_text())
+        self.assertEqual(info["pid"], self.server.pid)
+        sys.path.insert(0, str(BRIDGE))
+        from server import VERSION
+        self.assertEqual(info["version"], VERSION)
+
     def test_bad_requests(self):
         self.assertEqual(self.request("/send", {"session": "../etc", "shots": [{"png": PNG}]})[0], 400)
         self.assertEqual(self.request("/send", {"session": "s", "shots": [{"png": "not base64!"}]})[0], 400)
