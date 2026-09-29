@@ -33,7 +33,7 @@ struct SnipView: View {
 
     @ViewBuilder private var shots: some View {
         if model.shots.isEmpty {
-            AddTile(title: "Capture an area", subtitle: "or press ⇧⌘2 anywhere", action: capture)
+            AddTile(title: "Capture an area", subtitle: "⇧⌘2 for an area · ⌘C ⌘C for text", action: capture)
                 .frame(height: 96)
         } else {
             LazyVGrid(columns: columns, spacing: 12) {
@@ -86,9 +86,7 @@ private struct ShotTile: View {
     let onRemove: () -> Void
 
     var body: some View {
-        Image(nsImage: shot.image)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
+        content
             .frame(minWidth: 0, maxWidth: .infinity)
             .aspectRatio(4 / 3, contentMode: .fit)
             .clipped()
@@ -110,7 +108,25 @@ private struct ShotTile: View {
                 .offset(x: 7, y: -7)
                 .accessibilityLabel("Remove screenshot")
             }
-            .help(shot.app.map { "From \($0)" } ?? "Screenshot")
+            .help(shot.app.map { "From \($0)" } ?? (shot.text == nil ? "Screenshot" : "Copied text"))
+    }
+
+    /// A screenshot, or the first lines of copied text on a quote card.
+    @ViewBuilder private var content: some View {
+        if let image = shot.image {
+            Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\u{201C}").font(.hand(22, bold: true)).foregroundStyle(Color.crayonOrange).frame(height: 14)
+                Text(shot.text ?? "")
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(Color.ink)
+                    .lineLimit(5)
+            }
+            .padding(6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Color.card)
+        }
     }
 }
 
@@ -317,7 +333,7 @@ private struct StatusLine: View {
         case .session(let session):
             "Arrives in \(session.agent.title) with your next message."
         case .clipboard:
-            "Copies your prompt with the screenshots' file paths (for terminals) and the image (for chats). Paste with ⌘V."
+            "Copies your prompt, the copied text and the screenshots (file paths for terminals, the image for chats). Paste with ⌘V."
         case nil:
             ""
         }

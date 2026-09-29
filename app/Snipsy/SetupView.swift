@@ -213,6 +213,7 @@ private struct CommandRow: View {
             Button {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(command, forType: .string)
+                DoubleCopyWatcher.ignoredChange = NSPasteboard.general.changeCount
                 copied = true
                 Task {
                     try? await Task.sleep(for: .seconds(1.5))

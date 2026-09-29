@@ -2,11 +2,13 @@ import AppKit
 import Observation
 import ServiceManagement
 
+/// Something the user snipped: a screenshot, or text grabbed with ⌘C ⌘C.
 struct Shot: Identifiable {
     let id = UUID()
-    let png: Data
     let app: String?
-    let image: NSImage
+    var png: Data?
+    var image: NSImage?
+    var text: String?
 }
 
 enum PanelTab: Hashable {
@@ -68,7 +70,12 @@ final class AppModel {
 
     func add(png: Data, app: String?) {
         guard let image = NSImage(data: png) else { return }
-        shots.append(Shot(png: png, app: app, image: image))
+        shots.append(Shot(app: app, png: png, image: image))
+        status = nil
+    }
+
+    func add(text: String, app: String?) {
+        shots.append(Shot(app: app, text: text))
         status = nil
     }
 

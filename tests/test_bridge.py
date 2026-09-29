@@ -91,6 +91,17 @@ class BridgeTest(unittest.TestCase):
         self.hook("SessionEnd", "s1")
         self.assertNotIn("s1", {s["id"] for s in self.request("/sessions")[1]})
 
+    def test_copied_text_is_delivered_inline(self):
+        self.hook("SessionStart", "txt1")
+        status, _ = self.request("/send", {"session": "txt1", "comment": "why?",
+                                           "shots": [{"text": "TypeError: x is undefined", "app": "Chrome"}, {"png": PNG, "app": "Chrome"}]})
+        self.assertEqual(status, 200)
+        delivered = self.hook("UserPromptSubmit", "txt1", prompt="go")
+        self.assertIn("Copied text (1.txt):\n```\nTypeError: x is undefined\n```", delivered)
+        self.assertIn("2.png", delivered)
+        self.assertIn("From Chrome: 1.txt, 2.png", delivered)
+        self.assertEqual(self.request("/clip", {"shots": [{"text": "no"}]})[0], 400)  # only screenshots become files
+
     def test_codex_sessions_get_codex_instructions(self):
         # Run the hook under a parent process named "codex", like the Codex CLI or the ChatGPT app.
         payload = {"hook_event_name": "UserPromptSubmit", "session_id": "c1", "cwd": "/tmp", "prompt": "hi"}

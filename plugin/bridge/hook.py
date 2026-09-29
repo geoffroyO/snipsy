@@ -50,12 +50,14 @@ def take(sid, agent="claude"):
             d.rename(dest)  # atomic: hook and channel can race safely
         except FileNotFoundError:  # the channel (or another hook run) took it first
             continue
-        shots = sorted(dest.glob("*.png"), key=lambda p: int(p.stem))
-        msgs.append(
-            f"The user sent screenshots from their screen with Snipsy. Open them with {VIEW_TOOL.get(agent, 'your image tool')}:\n"
-            + "\n".join(str(p) for p in shots)
-            + "\nTheir comment:\n" + (dest / "comment.txt").read_text()
-        )
+        items = sorted((p for p in dest.iterdir() if p.stem.isdigit()), key=lambda p: int(p.stem))
+        lines = ["The user sent this from their screen with Snipsy."]
+        shots = [str(p) for p in items if p.suffix == ".png"]
+        if shots:
+            lines += [f"Screenshots, open them with {VIEW_TOOL.get(agent, 'your image tool')}:", *shots]
+        for text in (p for p in items if p.suffix == ".txt"):
+            lines += [f"Copied text ({text.name}):", "```", text.read_text(), "```"]
+        msgs.append("\n".join(lines) + "\nTheir comment:\n" + (dest / "comment.txt").read_text())
     return msgs
 
 
@@ -107,7 +109,7 @@ def session_title(ev, agent, sid):
 def readable(prompt):
     """A user prompt worth showing as a label, or None (Snipsy deliveries, markup, IDs/keys...)."""
     text = " ".join(re.sub(r"<[^>]+>", " ", prompt).split())
-    if not text or text.startswith("The user sent screenshots") or "channel source=" in prompt:
+    if not text or text.startswith("The user sent") or "channel source=" in prompt:
         return None
     words = text.split()
     if len(words) < 3 and any(len(w) > 24 for w in words):  # a lone hash, token or path

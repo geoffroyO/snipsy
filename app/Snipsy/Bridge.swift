@@ -44,7 +44,7 @@ enum Bridge {
 
     static func send(_ shots: [Shot], comment: String, to sessionID: String) async throws {
         struct Payload: Encodable {
-            struct Item: Encodable { let png: String; let app: String? }
+            struct Item: Encodable { let png: String?; let text: String?; let app: String? }
             let session: String
             let comment: String
             let shots: [Item]
@@ -56,21 +56,23 @@ enum Bridge {
         request.httpBody = try JSONEncoder().encode(Payload(
             session: sessionID,
             comment: comment,
-            shots: shots.map { .init(png: $0.png.base64EncodedString(), app: $0.app) }
+            shots: shots.map { .init(png: $0.png?.base64EncodedString(), text: $0.text, app: $0.app) }
         ))
         let (_, response) = try await URLSession.shared.data(for: request)
         try check(response)
     }
 
-    /// Saves the shots as files the user's other apps can read, returns their paths.
+    /// Saves the screenshots as files the user's other apps can read, returns their paths.
     static func saveClip(_ shots: [Shot]) async throws -> [String] {
+        let pngs = shots.compactMap(\.png)
+        guard !pngs.isEmpty else { return [] }
         struct Payload: Encodable { struct Item: Encodable { let png: String }; let shots: [Item] }
         struct Reply: Decodable { let paths: [String] }
         var request = request("clip")
         request.httpMethod = "POST"
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(Payload(shots: shots.map { .init(png: $0.png.base64EncodedString()) }))
+        request.httpBody = try JSONEncoder().encode(Payload(shots: pngs.map { .init(png: $0.base64EncodedString()) }))
         let (data, response) = try await URLSession.shared.data(for: request)
         try check(response)
         return try JSONDecoder().decode(Reply.self, from: data).paths

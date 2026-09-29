@@ -2,31 +2,36 @@ import AppKit
 
 enum Clipboard {
     /// Puts everything on a single pasteboard item, so one ⌘V does the right thing anywhere:
-    /// - text (terminals, Claude Code, Codex): the prompt, then the screenshot file paths;
-    /// - image + HTML (chat apps, Slack, Notes…): all shots stacked into one image, with the prompt.
+    /// - text (terminals, Claude Code, Codex): the prompt, the copied texts, then the screenshot file paths;
+    /// - image + HTML (chat apps, Slack, Notes…): all screenshots stacked into one image, with the prompt.
     static func copy(_ shots: [Shot], prompt: String, paths: [String]) {
-        guard let png = stacked(shots) else { return }
         let item = NSPasteboardItem()
-        item.setData(png, forType: .png)
-        if let tiff = NSImage(data: png)?.tiffRepresentation { item.setData(tiff, forType: .tiff) }
+        let png = stacked(shots)
+        if let png {
+            item.setData(png, forType: .png)
+            if let tiff = NSImage(data: png)?.tiffRepresentation { item.setData(tiff, forType: .tiff) }
+        }
         let prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quotes = shots.compactMap(\.text).map { "```\n\($0)\n```" }.joined(separator: "\n\n")
         // Spaces around each path: agents turn paths into image chips and would glue them to the prompt.
         let files = paths.map { " \($0) " }.joined()
-        let text = [prompt, files].filter { !$0.isEmpty }.joined(separator: "\n\n")
+        let text = [prompt, quotes, files].filter { !$0.isEmpty }.joined(separator: "\n\n")
         if !text.isEmpty { item.setString(text, forType: .string) }
-        if !prompt.isEmpty {
-            let text = prompt.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
+        if let png, !prompt.isEmpty {
+            let escaped = prompt.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
                 .replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\n", with: "<br>")
-            item.setString("<p>\(text)</p><img src=\"data:image/png;base64,\(png.base64EncodedString())\">", forType: .html)
+            item.setString("<p>\(escaped)</p><img src=\"data:image/png;base64,\(png.base64EncodedString())\">", forType: .html)
         }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.writeObjects([item])
+        DoubleCopyWatcher.ignoredChange = pasteboard.changeCount
     }
 
     private static func stacked(_ shots: [Shot]) -> Data? {
-        let images = shots.compactMap { NSBitmapImageRep(data: $0.png)?.cgImage }
-        guard images.count > 1 else { return shots.first?.png }
+        let pngs = shots.compactMap(\.png)
+        let images = pngs.compactMap { NSBitmapImageRep(data: $0)?.cgImage }
+        guard images.count > 1 else { return pngs.first }
         let gap = 24
         let width = images.map(\.width).max() ?? 0
         let height = images.map(\.height).reduce(0, +) + gap * (images.count - 1)

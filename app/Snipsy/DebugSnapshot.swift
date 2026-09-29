@@ -36,8 +36,8 @@ enum DebugSnapshot {
                 print("bridge OK:", sessions.map { "\($0.agent.title) \($0.project) [\($0.prompt)]" })
                 let icon = NSApp.applicationIconImage.tiffRepresentation.flatMap { NSBitmapImageRep(data: $0) }?
                     .representation(using: .png, properties: [:]) ?? Data()
-                let paths = try await Bridge.saveClip([Shot(png: icon, app: nil, image: NSApp.applicationIconImage)])
-                Clipboard.copy([Shot(png: icon, app: nil, image: NSApp.applicationIconImage)], prompt: "probe prompt", paths: paths)
+                let paths = try await Bridge.saveClip([Shot(app: nil, png: icon, image: NSApp.applicationIconImage)])
+                Clipboard.copy([Shot(app: nil, png: icon, image: NSApp.applicationIconImage)], prompt: "probe prompt", paths: paths)
                 print("clip OK:", paths)
             } catch {
                 print("bridge ERROR:", error)
@@ -51,7 +51,7 @@ enum DebugSnapshot {
         let sample = NSApp.applicationIconImage.tiffRepresentation.flatMap { NSBitmapImageRep(data: $0) }?
             .representation(using: .png, properties: [:]) ?? Data()
         model.add(png: sample, app: "Safari")
-        model.add(png: sample, app: "Figma")
+        model.add(text: "TypeError: Cannot read properties of undefined (reading 'map')\n    at CartList (cart.tsx:42:18)", app: "Chrome")
         model.comment = "The button is misaligned on mobile"
         model.sessions = [
             Session(id: "a", cwd: "/Users/me/Developer/snipsy", prompt: "polish the menu bar UI", channel: true, agentID: "claude"),

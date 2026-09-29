@@ -9,6 +9,7 @@
 <p align="center"><img src="docs/snipsy-demo.webp" width="720" alt="Snipsy demo: snip a bug on a web page, send it to Claude Code, it gets fixed"></p>
 
 - **⇧⌘2** anywhere, drag an area. Stack as many as you like.
+- **⌘C ⌘C** (copy twice, quickly) sends the selected text, like an error message or a log, to the same tray.
 - Pick a **Claude Code** or **Codex** session (terminal or desktop app), write a prompt, **↵** to send.
 - Or pick **Clipboard**: your prompt, the screenshots' file paths and the image, ready to paste in any chat.
 

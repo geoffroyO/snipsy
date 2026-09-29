@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var hotKey: HotKey?
     private var selector: ScreenSelector?
+    /// ⌘C ⌘C anywhere adds the copied text (or image) to the tray.
+    private var doubleCopy: DoubleCopyWatcher?
     /// Sparkle: checks the feed in Info.plist (SUFeedURL) and installs signed updates.
     private var updater: SPUStandardUpdaterController?
     /// Last app the user was in, so captures started from our own popover are still attributed.
@@ -57,6 +59,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let name = app.localizedName
             MainActor.assumeIsolated { self?.lastApp = name }
         }
+
+        doubleCopy = DoubleCopyWatcher { [weak self] pasteboard in self?.addCopied(from: pasteboard) }
+        doubleCopy?.start()
 
         // Capture must be instant: fetch displays and warm up ScreenCaptureKit now, and again when they change.
         Task { await ScreenCapture.prepare() }
@@ -114,6 +119,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         Task { await model.refresh() }
+    }
+
+    // MARK: - Double copy
+
+    private func addCopied(from pasteboard: NSPasteboard) {
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        let source = frontmost == .current ? lastApp : frontmost?.localizedName
+        if let text = pasteboard.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            model.add(text: text, app: source)
+        } else if let data = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff),
+                  let png = NSBitmapImageRep(data: data)?.representation(using: .png, properties: [:]) {
+            model.add(png: png, app: source)
+        } else {
+            return
+        }
+        showPopover(tab: .snip)
     }
 
     // MARK: - Capture

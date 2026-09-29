@@ -1,8 +1,8 @@
 """Local bridge between the Snipsy menu bar app and Claude Code / Codex sessions.
 
 GET  /sessions -> sessions registered by hook.py
-POST /send     -> {"session", "comment", "shots": [{"png": <base64>, "app": <source app>}]}
-                  written to ~/.snipsy/inbox/<session>/<id>/
+POST /send     -> {"session", "comment", "shots": [{"png": <base64> | "text": <str>, "app": <source app>}]}
+                  written to ~/.snipsy/inbox/<session>/<id>/ as N.png / N.txt
 POST /clip     -> {"shots": [...]} saved to ~/.snipsy/clips/<id>/, returns their paths so the
                   app can put them on the clipboard (terminals paste text, not images)
 
@@ -15,6 +15,7 @@ PORT = int(os.environ.get("SNIPSY_PORT", 7823))  # overridable for tests
 BASE = pathlib.Path.home() / ".snipsy"
 STALE = 3 * 86400  # safety net for sessions whose process we couldn't identify
 CLIP_TTL = 7 * 86400  # clipboard screenshots are kept a week
+MAX_TEXT = 200_000  # characters per copied text
 
 
 def alive(pid):
@@ -25,6 +26,15 @@ def alive(pid):
         return False
     except PermissionError:
         return True
+
+
+def decode(shot):
+    """A screenshot's PNG bytes, or a copied text; raises ValueError if it's neither."""
+    if isinstance(shot.get("png"), str):
+        return base64.b64decode(shot["png"], validate=True)
+    if isinstance(shot.get("text"), str) and 0 < len(shot["text"]) <= MAX_TEXT:
+        return shot["text"]
+    raise ValueError
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -63,9 +73,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             shots = d["shots"]
             if not shots:
                 raise ValueError
-            images = [base64.b64decode(s["png"], validate=True) for s in shots]
+            items = [decode(s) for s in shots]  # bytes (screenshot) or str (copied text)
             if self.path == "/clip":
-                return self.clip(images)
+                if not all(isinstance(i, bytes) for i in items):
+                    raise ValueError
+                return self.clip(items)
             session, comment = d["session"], d.get("comment", "")
             if not re.fullmatch(r"[\w-]+", session):
                 raise ValueError
@@ -75,9 +87,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         dest = BASE / "inbox" / session / time.strftime("%Y%m%d-%H%M%S")
         dest.mkdir(parents=True, exist_ok=True)
         apps = {}  # source app -> file names
-        for i, (shot, png) in enumerate(zip(shots, images), 1):
-            (dest / f"{i}.png").write_bytes(png)
-            apps.setdefault(shot.get("app") or "screen", []).append(f"{i}.png")
+        for i, (shot, item) in enumerate(zip(shots, items), 1):
+            name = f"{i}.png" if isinstance(item, bytes) else f"{i}.txt"
+            if isinstance(item, bytes):
+                (dest / name).write_bytes(item)
+            else:
+                (dest / name).write_text(item)
+            apps.setdefault(shot.get("app") or "screen", []).append(name)
         sources = "\n".join(f"From {app}: {', '.join(names)}" for app, names in apps.items())
         (dest / "comment.txt").write_text(comment.strip() + "\n\n" + sources + "\n")
         self.reply(200, {"ok": True})
