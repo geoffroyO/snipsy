@@ -103,6 +103,38 @@ class BridgeTest(unittest.TestCase):
         registered = json.loads(pathlib.Path(self.home.name, ".snipsy/sessions/c1.json").read_text())
         self.assertEqual(registered["agent"], "codex")
 
+    def registered(self, sid):
+        return json.loads(pathlib.Path(self.home.name, f".snipsy/sessions/{sid}.json").read_text())
+
+    def test_label_is_the_claude_session_title(self):
+        transcript = pathlib.Path(self.home.name, "t1.jsonl")
+        transcript.write_text("\n".join([
+            json.dumps({"type": "user", "message": "hi"}),
+            json.dumps({"type": "ai-title", "aiTitle": "Fix the landing page"}),
+        ]) + "\n")
+        self.hook("UserPromptSubmit", "t1", prompt="a4ba493cdd5e765a3f0015fdf8e2c1b7d4", transcript_path=str(transcript))
+        self.assertEqual(self.registered("t1")["prompt"], "Fix the landing page")
+        with transcript.open("a") as f:  # /rename wins over the automatic title
+            f.write(json.dumps({"type": "custom-title", "customTitle": "landing"}) + "\n")
+        self.hook("UserPromptSubmit", "t1", prompt="again", transcript_path=str(transcript))
+        self.assertEqual(self.registered("t1")["prompt"], "landing")
+
+    def test_label_is_the_codex_thread_name(self):
+        codex_home = pathlib.Path(self.home.name, "codex-home")
+        codex_home.mkdir(exist_ok=True)
+        (codex_home / "session_index.jsonl").write_text(json.dumps({"id": "x9", "thread_name": "Compare prices"}) + "\n")
+        payload = {"hook_event_name": "SessionStart", "session_id": "x9", "cwd": "/tmp"}
+        command = f'"{sys.executable}" "{BRIDGE / "hook.py"}"; exit $?'
+        subprocess.run(["codex", "-c", command], executable="/bin/bash", input=json.dumps(payload), text=True,
+                       capture_output=True, env={**self.env, "CODEX_HOME": str(codex_home)}, check=True)
+        self.assertEqual(self.registered("x9")["prompt"], "Compare prices")
+
+    def test_unreadable_prompts_keep_the_previous_label(self):
+        self.hook("UserPromptSubmit", "u1", prompt="fix the navbar on mobile")
+        for junk in ["The user sent screenshots from their screen with Snipsy.", "a4ba493cdd5e765a3f0015fdf8e2c1b7d4"]:
+            self.hook("UserPromptSubmit", "u1", prompt=junk)
+        self.assertEqual(self.registered("u1")["prompt"], "fix the navbar on mobile")
+
     def test_dead_sessions_are_pruned(self):
         sessions = pathlib.Path(self.home.name, ".snipsy/sessions")
         sessions.mkdir(parents=True, exist_ok=True)

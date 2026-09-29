@@ -59,6 +59,62 @@ def take(sid, agent="claude"):
     return msgs
 
 
+def session_title(ev, agent, sid):
+    """The title the agent shows for this session, or None if it has none yet.
+
+    Claude Code appends `custom-title` (/rename) and `ai-title` records to the transcript;
+    Codex keeps `thread_name` in $CODEX_HOME/session_index.jsonl.
+    """
+    if agent == "codex":
+        index = pathlib.Path(os.environ.get("CODEX_HOME", pathlib.Path.home() / ".codex")) / "session_index.jsonl"
+        title = None
+        try:
+            with index.open() as f:
+                for line in f:  # small file; the last entry for the session wins
+                    if sid in line:
+                        title = json.loads(line).get("thread_name") or title
+        except (OSError, ValueError):
+            pass
+        return title
+
+    path = ev.get("transcript_path")
+    if not path:
+        return None
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - 2_000_000))  # titles are re-appended often: the tail is enough
+            lines = f.read().decode(errors="ignore").splitlines()
+    except OSError:
+        return None
+    keys = {"custom-title": "customTitle", "ai-title": "aiTitle"}
+    found = {}
+    for line in reversed(lines):
+        if "-title" not in line:  # cheap filter before parsing
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        kind = record.get("type")
+        if kind in keys and kind not in found:
+            found[kind] = record.get(keys[kind])
+        if "custom-title" in found:
+            break
+    return found.get("custom-title") or found.get("ai-title")
+
+
+def readable(prompt):
+    """A user prompt worth showing as a label, or None (Snipsy deliveries, markup, IDs/keys...)."""
+    text = " ".join(re.sub(r"<[^>]+>", " ", prompt).split())
+    if not text or text.startswith("The user sent screenshots") or "channel source=" in prompt:
+        return None
+    words = text.split()
+    if len(words) < 3 and any(len(w) > 24 for w in words):  # a lone hash, token or path
+        return None
+    return text[:80]
+
+
 def ensure_server():
     try:
         socket.create_connection(("127.0.0.1", PORT), 0.2).close()
@@ -81,9 +137,12 @@ if __name__ == "__main__":
     pid, agent, args = agent_proc()
     s.update(cwd=ev.get("cwd", s.get("cwd", "")), ts=time.time(), pid=pid, agent=agent,
              channel=agent == "claude" and has_channel(args))
-    if name == "UserPromptSubmit":
-        prompt = re.sub(r"<[^>]+>", " ", ev.get("prompt", ""))  # drop markup like <pasted_content …>
-        s["prompt"] = " ".join(prompt.split())[:80]
+    # Label shown in the app: the session's own title, else the last readable prompt.
+    title = session_title(ev, agent, sid)
+    if title:
+        s["prompt"] = title[:80]
+    elif name == "UserPromptSubmit":
+        s["prompt"] = readable(ev.get("prompt", "")) or s["prompt"]
     reg.parent.mkdir(parents=True, exist_ok=True)
     reg.write_text(json.dumps(s))
 
