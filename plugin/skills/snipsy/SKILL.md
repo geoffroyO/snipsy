@@ -72,12 +72,12 @@ Other: right-click ✂️ for a menu (Capture, Setup, Check for Updates, Quit); 
 ## Update and uninstall
 
 - **Update the plugin**: `claude plugin marketplace update snipsy && claude plugin update snipsy@snipsy` (Codex: `codex plugin remove snipsy@snipsy && codex plugin add snipsy@snipsy`), then start a new session.
-- **Update the app**: automatic. Snipsy checks for updates itself (Sparkle) and offers to install them; to check now, right-click ✂️ → *Check for Updates…* or use the link at the bottom of *Setup*.
+- **Update the app**: automatic. Snipsy checks every hour (Sparkle), downloads new versions silently and installs them when it quits (restart, logout, Quit). To update right away: right-click ✂️ → *Check for Updates…*, or the link at the bottom of *Setup*.
 - **Uninstall**: quit Snipsy from its menu, delete it from Applications, `claude plugin uninstall snipsy@snipsy` / `codex plugin remove snipsy@snipsy`, and optionally `rm -rf ~/.snipsy`.
 
 ## Privacy
 
-Screenshots never leave the Mac: the app sends them only to the bridge on 127.0.0.1. No analytics, no account. The only other network request is the update check against github.com (Sparkle, at most daily, with the user's consent, no system data sent). Screenshots are only taken of the area the user selects, stored in `~/.snipsy/inbox/` for their session, and clipboard copies are kept 7 days in `~/.snipsy/clips/`. What the agent does with an image afterwards follows that agent's own terms.
+Screenshots never leave the Mac: the app sends them only to the bridge on 127.0.0.1. No analytics, no account. The only other network requests are the update check and download from github.com (Sparkle, about hourly, no system data sent). Screenshots are only taken of the area the user selects, stored in `~/.snipsy/inbox/` for their session, and clipboard copies are kept 7 days in `~/.snipsy/clips/`. What the agent does with an image afterwards follows that agent's own terms.
 
 ## Troubleshooting
 

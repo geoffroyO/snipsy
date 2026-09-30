@@ -14,5 +14,13 @@
 	<string>8/qtGiFgWR4ZN5StPUjG8jNgjsuIoUuxyh/jPIc2itU=</string>
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
+	<!-- Updates are fully automatic: checked hourly without asking first, downloaded silently,
+	     installed when Snipsy quits (restart, logout, Quit). -->
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>3600</integer>
 </dict>
 </plist>
