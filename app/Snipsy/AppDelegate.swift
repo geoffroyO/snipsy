@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var hotKey: HotKey?
     private var selector: ScreenSelector?
+    /// ↑/↓ while the panel is open, whatever has focus in it.
+    private var arrowKeys: Any?
     /// ⌘C ⌘C anywhere adds the copied text (or image) to the tray.
     private var doubleCopy: DoubleCopyWatcher?
     /// Sparkle: checks the feed in Info.plist (SUFeedURL) and installs signed updates.
@@ -60,6 +62,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.lastApp = name }
         }
 
+        // A local monitor sees the panel's key events before any view, so the arrows work even
+        // when the prompt field doesn't have focus (e.g. after clicking a session).
+        arrowKeys = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            let key = event.keyCode, flags = event.modifierFlags
+            let handled = MainActor.assumeIsolated { self.switchDestination(key: key, flags: flags) }
+            return handled ? nil : event
+        }
+
         doubleCopy = DoubleCopyWatcher { [weak self] pasteboard in self?.addCopied(from: pasteboard) }
         doubleCopy?.start()
 
@@ -69,6 +80,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                object: nil, queue: .main) { _ in
             Task { @MainActor in await ScreenCapture.prepare() }
         }
+
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "arrows") { return testArrowKeys() }
+        #endif
 
         // First run (or something missing): open straight on Setup.
         Task {
@@ -118,8 +133,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+        DispatchQueue.main.async { [weak self] in self?.focusPrompt() } // once the panel is laid out
         Task { await model.refresh() }
     }
+
+    /// Puts the cursor in the prompt field, so the user can type (or use ↑/↓) without clicking.
+    private func focusPrompt() {
+        guard model.tab == .snip, let window = popover.contentViewController?.view.window,
+              let field = window.contentView?.firstDescendant(of: NSTextView.self) else { return }
+        window.makeFirstResponder(field)
+    }
+
+    /// ↑/↓ select the previous/next destination; in a multi-line prompt they move the cursor instead.
+    private func switchDestination(key: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
+        let up: UInt16 = 126, down: UInt16 = 125
+        guard popover.isShown, model.tab == .snip, key == up || key == down,
+              flags.intersection([.command, .option, .control, .shift]).isEmpty,
+              !model.comment.contains("\n") else { return false }
+        model.moveDestination(by: key == up ? -1 : 1)
+        return true
+    }
+
+    #if DEBUG
+    /// `Snipsy -arrows 1`: opens the panel with sample sessions, takes focus away from the prompt,
+    /// sends ↓ ↓ ↑ as real key events, prints the selection after each, quits.
+    private func testArrowKeys() {
+        model.sessions = ["a", "b", "c"].map { Session(id: $0, cwd: "/tmp/\($0)", prompt: $0, channel: false, agentID: "claude") }
+        popover.behavior = .applicationDefined // launched from a terminal, a transient popover closes at once
+        Task {
+            try? await Task.sleep(for: .milliseconds(500)) // status item laid out
+            showPopover(tab: .snip)
+            try? await Task.sleep(for: .milliseconds(600))
+            let responder = popover.contentViewController?.view.window?.firstResponder
+            print("panel shown: \(popover.isShown), prompt focused: \(responder is NSTextView)")
+            model.sessions = ["a", "b", "c"].map { Session(id: $0, cwd: "/tmp/\($0)", prompt: $0, channel: false, agentID: "claude") }
+            model.destinationID = "session:a"
+            popover.contentViewController?.view.window?.makeFirstResponder(nil) // arrows must work without focus too
+            for key: UInt16 in [125, 125, 126] {
+                let window = popover.contentViewController?.view.window
+                if let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                                windowNumber: window?.windowNumber ?? 0, context: nil,
+                                                characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: key) {
+                    NSApp.postEvent(event, atStart: false)
+                }
+                try? await Task.sleep(for: .milliseconds(200))
+                print("after \(key == 125 ? "↓" : "↑"):", model.destinationID ?? "nil")
+            }
+            NSApp.terminate(nil)
+        }
+    }
+    #endif
 
     // MARK: - Double copy
 
@@ -176,5 +239,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.selector = selector
         selector.begin()
         Task { if let frozen = try? await freezing.value { selector.show(frozen) } }
+    }
+}
+
+private extension NSView {
+    /// Depth-first search for the first subview of the given type.
+    func firstDescendant<T: NSView>(of type: T.Type) -> T? {
+        for view in subviews {
+            if let match = view as? T ?? view.firstDescendant(of: type) { return match }
+        }
+        return nil
     }
 }

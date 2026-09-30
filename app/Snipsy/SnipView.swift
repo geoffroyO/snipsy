@@ -61,12 +61,6 @@ struct SnipView: View {
                 }
                 return .handled
             }
-            .onKeyPress(keys: [.upArrow, .downArrow], phases: [.down, .repeat]) { press in
-                // ↑/↓ switch the destination; in a multi-line prompt they move the cursor instead.
-                guard !model.comment.contains("\n") else { return .ignored }
-                model.moveDestination(by: press.key == .upArrow ? -1 : 1)
-                return .handled
-            }
             .padding(.horizontal, 6)
             .padding(.vertical, 7)
             .frame(height: 70)
