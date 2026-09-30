@@ -165,36 +165,24 @@ private struct AgentCard: View {
 /// Optional Claude Code channel: screenshots arrive without typing a message.
 private struct InstantDelivery: View {
     let active: Bool
-    @State private var expanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Button { expanded.toggle() } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "bolt.fill").foregroundStyle(Color.crayonOrange)
-                    Text("Instant delivery").font(.hand(15, bold: true))
-                    AgentTag(agent: .claude, compact: true)
-                    Text("optional").font(.system(size: 11)).foregroundStyle(Color.mute)
-                    Spacer()
-                    if active {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.crayonGreen)
-                    }
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color.mute)
-                        .rotationEffect(.degrees(expanded ? 0 : -90))
+            HStack(spacing: 6) {
+                Image(systemName: "bolt.fill").foregroundStyle(Color.crayonOrange)
+                Text("Instant delivery").font(.hand(15, bold: true))
+                AgentTag(agent: .claude, compact: true)
+                Text("optional").font(.system(size: 11)).foregroundStyle(Color.mute)
+                Spacer()
+                if active {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.crayonGreen)
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-
-            if expanded {
-                Text("Start Claude Code like this and it reacts as soon as you hit Send, without waiting for your next message:")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.ink.opacity(0.85))
-                    .fixedSize(horizontal: false, vertical: true)
-                CommandRow(command: "claude --dangerously-load-development-channels plugin:snipsy@snipsy")
-            }
+            Text("Start Claude Code like this and it reacts as soon as you hit Send, without waiting for your next message:")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.ink.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+            CommandRow(command: "claude --dangerously-load-development-channels plugin:snipsy@snipsy")
         }
     }
 }
