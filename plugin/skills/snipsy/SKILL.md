@@ -52,7 +52,7 @@ Snipsy.app ──HTTP──▶ bridge/server.py (127.0.0.1:7823) ──▶ ~/.sn
 1. **⇧⌘2** anywhere (or click ✂️ → *+ area*). The screen freezes like macOS's own screenshot tool (open menus stay visible); drag the area, or press Esc to cancel.
 2. Add more areas if needed, even from other apps. Remove one with its orange ✕.
    **Text too**: select text anywhere and press **⌘C ⌘C** (copy twice, quickly, like DeepL). It lands in the tray as a quote card next to the screenshots. Copying an image twice adds the image. The first time, macOS may ask to let Snipsy paste from other apps: allow it.
-3. **Send to**: sessions are grouped by agent, orange **Claude Code** and dark **Codex**, each labeled with its project folder and last message. ⚡ marks instant delivery. The list refreshes live.
+3. **Send to**: sessions are grouped by agent, orange **Claude Code** and dark **Codex**, each labeled with its project folder and last message. ⚡ marks instant delivery. The list refreshes live; **↑/↓** switch the destination.
 4. Write a prompt. **↵ sends**, **⌘↵** (or ⇧↵) inserts a new line.
 5. Or choose **Clipboard**: Snipsy copies the prompt, the screenshots' file paths (for terminals, including Claude Code and Codex, which turn the paths into attached images) and the image itself (for chat apps like ChatGPT or Claude.ai). Paste with ⌘V.
 

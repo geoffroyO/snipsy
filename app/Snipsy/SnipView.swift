@@ -28,7 +28,7 @@ struct SnipView: View {
 
             StatusLine(model: model)
         }
-        .onAppear { commentFocused = !model.shots.isEmpty }
+        .onAppear { commentFocused = true } // typing and ↑/↓ work right away
     }
 
     @ViewBuilder private var shots: some View {
@@ -59,6 +59,12 @@ struct SnipView: View {
                 } else if model.canSend {
                     Task { await model.send() }
                 }
+                return .handled
+            }
+            .onKeyPress(keys: [.upArrow, .downArrow], phases: [.down, .repeat]) { press in
+                // ↑/↓ switch the destination; in a multi-line prompt they move the cursor instead.
+                guard !model.comment.contains("\n") else { return .ignored }
+                model.moveDestination(by: press.key == .upArrow ? -1 : 1)
                 return .handled
             }
             .padding(.horizontal, 6)
@@ -163,6 +169,8 @@ private struct DestinationPicker: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Send to").font(.hand(15, bold: true))
+                Text("↑↓").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.mute.opacity(0.8))
+                    .help("Use the arrow keys to switch")
                 Spacer()
                 Button { Task { await model.refresh() } } label: {
                     Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .semibold))
@@ -214,6 +222,9 @@ private struct DestinationPicker: View {
                                                  .init(color: .black, location: 0.88), .init(color: .clear, location: 1)],
                                          startPoint: .top, endPoint: .bottom))
                     .onAppear { proxy.scrollTo(model.destinationID, anchor: .center) }
+                    .onChange(of: model.destinationID) { _, id in
+                        withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id) } // keep the selection visible
+                    }
             }
         } else {
             list

@@ -52,6 +52,18 @@ final class AppModel {
         sessions.map(Destination.session) + [.clipboard]
     }
     var destination: Destination? { destinations.first { $0.id == destinationID } }
+
+    /// Destinations in the order they're listed: Claude Code sessions, Codex sessions, then the clipboard.
+    var orderedDestinations: [Destination] {
+        Agent.allCases.flatMap { agent in sessions.filter { $0.agent == agent } }.map(Destination.session) + [.clipboard]
+    }
+
+    /// ↑/↓ in the panel: select the previous/next destination (stops at the ends).
+    func moveDestination(by step: Int) {
+        let list = orderedDestinations
+        let current = list.firstIndex { $0.id == destinationID } ?? -1
+        destinationID = list[min(max(current + step, 0), list.count - 1)].id
+    }
     var canSend: Bool { !shots.isEmpty && destination != nil && !isSending }
     var needsSetup: Bool { !hasScreenPermission || bridge == .offline }
 
